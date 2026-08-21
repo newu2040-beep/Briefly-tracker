@@ -1,0 +1,6 @@
+{
+  "name": "Briefly",
+  "description": "A simple daily goal tracker that helps users create goals, track completion, and understand progress through reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

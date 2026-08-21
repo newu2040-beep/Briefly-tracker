@@ -94,6 +94,32 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `test user profile and preferences persistence`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = UserPreferences(context)
+        
+        prefs.setUserFullProfile(
+            name = "Jordan Lee",
+            age = "28",
+            weight = "72 kg",
+            height = "180 cm",
+            gender = "Male"
+        )
+        prefs.setThemePalette("EMERALD")
+        prefs.setNotificationRingtone("CRYSTAL_CHIME")
+        prefs.setNatureSoundType("OCEAN")
+
+        assertEquals("Jordan Lee", prefs.userName.first())
+        assertEquals("28", prefs.userAge.first())
+        assertEquals("72 kg", prefs.userWeight.first())
+        assertEquals("180 cm", prefs.userHeight.first())
+        assertEquals("Male", prefs.userGender.first())
+        assertEquals("EMERALD", prefs.themePalette.first())
+        assertEquals("CRYSTAL_CHIME", prefs.notificationRingtone.first())
+        assertEquals("OCEAN", prefs.natureSoundType.first())
+    }
+
+    @Test
     fun `test main composable hierarchy renders without crash`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = BrieflyDatabase.getDatabase(context)

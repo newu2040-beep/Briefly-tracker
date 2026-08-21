@@ -40,14 +40,65 @@ class BrieflyViewModel(
     val themeMode: StateFlow<String> = preferences.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "SYSTEM")
 
+    val themePalette: StateFlow<String> = preferences.themePalette
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "INDIGO")
+
     val notificationsEnabled: StateFlow<Boolean> = preferences.notificationsEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val dailyReminderTime: StateFlow<String> = preferences.dailyReminderTime
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "08:00 AM")
 
+    val notificationRingtone: StateFlow<String> = preferences.notificationRingtone
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "ZEN_BELL")
+
     val userName: StateFlow<String> = preferences.userName
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Goal Achiever")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Alex Morgan")
+
+    val userAge: StateFlow<String> = preferences.userAge
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "26")
+
+    val userWeight: StateFlow<String> = preferences.userWeight
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "68 kg")
+
+    val userHeight: StateFlow<String> = preferences.userHeight
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "175 cm")
+
+    val userGender: StateFlow<String> = preferences.userGender
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Male")
+
+    val profilePictureUri: StateFlow<String?> = preferences.profilePictureUri
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val timerDurationMinutes: StateFlow<Int> = preferences.timerDurationMinutes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 25)
+
+    val natureSoundType: StateFlow<String> = preferences.natureSoundType
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "RAIN")
+
+    val natureSoundVolume: StateFlow<Float> = preferences.natureSoundVolume
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.75f)
+
+    val backgroundAudioEnabled: StateFlow<Boolean> = preferences.backgroundAudioEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    // Active Timer & Nature Sound Live State
+    private val _timerSecondsRemaining = MutableStateFlow(25 * 60)
+    val timerSecondsRemaining: StateFlow<Int> = _timerSecondsRemaining.asStateFlow()
+
+    private val _timerTotalSeconds = MutableStateFlow(25 * 60)
+    val timerTotalSeconds: StateFlow<Int> = _timerTotalSeconds.asStateFlow()
+
+    private val _isTimerRunning = MutableStateFlow(false)
+    val isTimerRunning: StateFlow<Boolean> = _isTimerRunning.asStateFlow()
+
+    private val _isTimerPaused = MutableStateFlow(false)
+    val isTimerPaused: StateFlow<Boolean> = _isTimerPaused.asStateFlow()
+
+    private val _isNatureAudioPlaying = MutableStateFlow(false)
+    val isNatureAudioPlaying: StateFlow<Boolean> = _isNatureAudioPlaying.asStateFlow()
+
+    private var timerJob: kotlinx.coroutines.Job? = null
 
     // Filter states
     private val _searchQuery = MutableStateFlow("")
@@ -252,6 +303,12 @@ class BrieflyViewModel(
         }
     }
 
+    fun setThemePalette(palette: String) {
+        viewModelScope.launch {
+            preferences.setThemePalette(palette)
+        }
+    }
+
     fun setNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferences.setNotificationsEnabled(enabled)
@@ -264,9 +321,175 @@ class BrieflyViewModel(
         }
     }
 
+    fun setNotificationRingtone(ringtone: String) {
+        viewModelScope.launch {
+            preferences.setNotificationRingtone(ringtone)
+        }
+    }
+
+    fun previewRingtone(ringtone: com.example.data.util.NotificationRingtone) {
+        com.example.data.util.NatureSoundEngine.playRingtonePreview(ringtone)
+    }
+
     fun updateUserName(name: String) {
         viewModelScope.launch {
             preferences.setUserName(name)
+        }
+    }
+
+    fun updateUserFullProfile(
+        name: String,
+        age: String,
+        weight: String,
+        height: String,
+        gender: String
+    ) {
+        viewModelScope.launch {
+            preferences.setUserFullProfile(
+                name = name.trim(),
+                age = age.trim(),
+                weight = weight.trim(),
+                height = height.trim(),
+                gender = gender
+            )
+        }
+    }
+
+    fun updateProfilePictureUri(uri: String?) {
+        viewModelScope.launch {
+            preferences.setProfilePictureUri(uri)
+        }
+    }
+
+    fun setTimerDurationMinutes(minutes: Int) {
+        viewModelScope.launch {
+            preferences.setTimerDurationMinutes(minutes)
+            if (!_isTimerRunning.value) {
+                _timerTotalSeconds.value = minutes * 60
+                _timerSecondsRemaining.value = minutes * 60
+            }
+        }
+    }
+
+    fun setNatureSoundType(type: String) {
+        viewModelScope.launch {
+            preferences.setNatureSoundType(type)
+        }
+    }
+
+    fun setNatureSoundVolume(volume: Float) {
+        viewModelScope.launch {
+            preferences.setNatureSoundVolume(volume)
+            com.example.data.util.NatureSoundEngine.setVolume(volume)
+        }
+    }
+
+    fun setBackgroundAudioEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferences.setBackgroundAudioEnabled(enabled)
+        }
+    }
+
+    // Timer & Audio Control Methods
+    fun startTimer(minutes: Int, sound: com.example.data.util.NatureSound, context: android.content.Context) {
+        timerJob?.cancel()
+        _timerTotalSeconds.value = minutes * 60
+        _timerSecondsRemaining.value = minutes * 60
+        _isTimerRunning.value = true
+        _isTimerPaused.value = false
+
+        // Start Nature Sounds
+        startNatureSoundPlayback(sound, natureSoundVolume.value, backgroundAudioEnabled.value, context)
+
+        timerJob = viewModelScope.launch {
+            while (_timerSecondsRemaining.value > 0) {
+                kotlinx.coroutines.delay(1000)
+                if (!_isTimerPaused.value) {
+                    _timerSecondsRemaining.value -= 1
+                }
+            }
+            // Timer Finished
+            _isTimerRunning.value = false
+            _isTimerPaused.value = false
+            stopNatureSoundPlayback(context)
+
+            // Play completion chime alert
+            val ringtoneId = notificationRingtone.value
+            val ringtone = com.example.data.util.NotificationRingtone.fromId(ringtoneId)
+            previewRingtone(ringtone)
+        }
+    }
+
+    fun pauseTimer(context: android.content.Context) {
+        _isTimerPaused.value = true
+        pauseNatureSoundPlayback(context)
+    }
+
+    fun resumeTimer(context: android.content.Context) {
+        _isTimerPaused.value = false
+        val sound = com.example.data.util.NatureSound.fromId(natureSoundType.value)
+        startNatureSoundPlayback(sound, natureSoundVolume.value, backgroundAudioEnabled.value, context)
+    }
+
+    fun stopTimer(context: android.content.Context) {
+        timerJob?.cancel()
+        timerJob = null
+        _isTimerRunning.value = false
+        _isTimerPaused.value = false
+        _timerSecondsRemaining.value = _timerTotalSeconds.value
+        stopNatureSoundPlayback(context)
+    }
+
+    fun toggleNatureSoundOnly(sound: com.example.data.util.NatureSound, context: android.content.Context) {
+        if (_isNatureAudioPlaying.value) {
+            stopNatureSoundPlayback(context)
+        } else {
+            startNatureSoundPlayback(sound, natureSoundVolume.value, backgroundAudioEnabled.value, context)
+        }
+    }
+
+    private fun startNatureSoundPlayback(
+        sound: com.example.data.util.NatureSound,
+        volume: Float,
+        useBackground: Boolean,
+        context: android.content.Context
+    ) {
+        _isNatureAudioPlaying.value = true
+        setNatureSoundType(sound.id)
+        if (useBackground) {
+            try {
+                com.example.data.util.NatureAudioService.startAudio(context, sound.id, volume)
+            } catch (_: Exception) {
+                com.example.data.util.NatureSoundEngine.playNatureSound(sound, volume)
+            }
+        } else {
+            com.example.data.util.NatureSoundEngine.playNatureSound(sound, volume)
+        }
+    }
+
+    private fun pauseNatureSoundPlayback(context: android.content.Context) {
+        _isNatureAudioPlaying.value = false
+        if (backgroundAudioEnabled.value) {
+            try {
+                com.example.data.util.NatureAudioService.pauseAudio(context)
+            } catch (_: Exception) {
+                com.example.data.util.NatureSoundEngine.pauseNatureSound()
+            }
+        } else {
+            com.example.data.util.NatureSoundEngine.pauseNatureSound()
+        }
+    }
+
+    private fun stopNatureSoundPlayback(context: android.content.Context) {
+        _isNatureAudioPlaying.value = false
+        if (backgroundAudioEnabled.value) {
+            try {
+                com.example.data.util.NatureAudioService.stopAudio(context)
+            } catch (_: Exception) {
+                com.example.data.util.NatureSoundEngine.stopNatureSound()
+            }
+        } else {
+            com.example.data.util.NatureSoundEngine.stopNatureSound()
         }
     }
 

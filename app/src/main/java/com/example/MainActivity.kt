@@ -24,13 +24,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+            val themePalette by viewModel.themePalette.collectAsStateWithLifecycle()
             val isDarkTheme = when (themeMode) {
                 "DARK" -> true
                 "LIGHT" -> false
                 else -> isSystemInDarkTheme()
             }
 
-            BrieflyTheme(darkTheme = isDarkTheme) {
+            BrieflyTheme(
+                darkTheme = isDarkTheme,
+                paletteId = themePalette
+            ) {
                 BrieflyApp(viewModel = viewModel)
             }
         }

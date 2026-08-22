@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
         GoalSubtaskEntity::class,
         GoalCompletionEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class BrieflyDatabase : RoomDatabase() {
